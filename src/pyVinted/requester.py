@@ -63,6 +63,7 @@ class Requester:
                 if response.status_code == 200:
                     return response
                 else:
+                    print(response.status_code)
                     self.ban_current_proxy()
             except Exception:
                 self.ban_current_proxy()
