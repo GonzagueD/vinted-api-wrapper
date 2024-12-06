@@ -1,95 +1,91 @@
-import json
 import requests
-import re
 import random
 from requests.exceptions import HTTPError
 
-
 class Requester:
-
-    def __init__(self):
-
+    def __init__(self, proxies=None, max_retries=3):
         self.HEADER = {
-            "User-Agent": "PostmanRuntime/7.28.4",  # random.choice(USER_AGENTS),
+            "User-Agent": "PostmanRuntime/7.28.4",
             "Host": "www.vinted.fr",
         }
         self.VINTED_AUTH_URL = "https://www.vinted.fr/"
-        self.MAX_RETRIES = 3
+        self.MAX_RETRIES = max_retries
         self.session = requests.Session()
         self.session.headers.update(self.HEADER)
-        # self.setCookies()
+
+        self.all_proxies = proxies if proxies else []
+        self.available_proxies = self.all_proxies.copy()
+        self.banned_proxies = set()
+        self.current_proxy = None
+        self.rotate_proxy()
+
+    def set_proxies(self, proxies):
+        self.all_proxies = proxies if proxies else []
+        self.available_proxies = self.all_proxies.copy()
+        self.banned_proxies.clear()
+        self.current_proxy = None
+        self.rotate_proxy()
+
+    def rotate_proxy(self):
+        if not self.available_proxies and self.all_proxies:
+            self.available_proxies = self.all_proxies.copy()
+            self.banned_proxies.clear()
+
+        if self.available_proxies:
+            self.current_proxy = random.choice(self.available_proxies)
+            self.session.proxies = {
+                "http": self.current_proxy,
+                "https": self.current_proxy,
+            }
+        else:
+            self.session.proxies.clear()
+            self.current_proxy = None
+
+    def ban_current_proxy(self):
+        if self.current_proxy in self.available_proxies:
+            self.available_proxies.remove(self.current_proxy)
+        self.banned_proxies.add(self.current_proxy)
+        self.rotate_proxy()
 
     def setLocale(self, locale):
-        """
-            Set the locale of the requester.
-            :param locale: str
-        """
         self.VINTED_AUTH_URL = f"https://{locale}/"
-        self.HEADER = {
-            "User-Agent": "PostmanRuntime/7.28.4",  # random.choice(USER_AGENTS),
+        self.session.headers.update({
+            "User-Agent": "PostmanRuntime/7.28.4",
             "Host": f"{locale}",
-        }
-        self.session.headers.update(self.HEADER)
+        })
 
     def get(self, url, params=None):
-        """
-        Perform a http get request.
-        :param url: str
-        :param params: dict, optional
-        :return: dict
-            Json format
-        """
         tried = 0
         while tried < self.MAX_RETRIES:
             tried += 1
-            with self.session.get(url, params=params) as response:
-
-                if response.status_code == 401 and tried < self.MAX_RETRIES:
-                    print(f"Cookies invalid retrying {tried}/{self.MAX_RETRIES}")
-                    self.setCookies()
-
-                elif response.status_code == 200 or tried == self.MAX_RETRIES:
+            try:
+                response = self.session.get(url, params=params, timeout=10)
+                if response.status_code == 200:
                     return response
-
-        return HTTPError
+                else:
+                    self.ban_current_proxy()
+            except Exception:
+                self.ban_current_proxy()
+        raise HTTPError(f"Impossible de récupérer l'URL : {url}")
 
     def post(self, url, params=None):
-        response = self.session.post(url, params)
-        response.raise_for_status()
-        return response
+        tried = 0
+        while tried < self.MAX_RETRIES:
+            tried += 1
+            try:
+                response = self.session.post(url, params=params, timeout=10)
+                response.raise_for_status()
+                return response
+            except Exception:
+                self.ban_current_proxy()
+        raise HTTPError(f"Impossible de poster sur l'URL : {url}")
 
     def setCookies(self):
-
         self.session.cookies.clear_session_cookies()
-
         try:
-
             self.session.head(self.VINTED_AUTH_URL)
-            print("Cookies set!")
-
-        except Exception as e:
-            print(
-                f"There was an error fetching cookies for vinted\n Error : {e}"
-            )
-
-    # def login(self,username,password=None):
-
-    #     # client.headers["X-Csrf-Token"] = csrf_token
-    #     # client.headers["Content-Type"] = "*/*"
-    #     # client.headers["Host"] = "www.vinted.fr"
-    #     print(self.session.headers)
-    #     urlCaptcha = "https://www.vinted.fr/api/v2/captchas"
-    #     dataCaptcha = {"entity_type":"login", "payload":{"username": username }}
-
-    #     token_endpoint  = "https://www.vinted.fr/oauth/token"
-    #     uuid = self.session.post(urlCaptcha, data=json.dumps(dataCaptcha)).json()["uuid"]
-    #     log = {"client_id":"web","scope":"user","username":username,"password":password,"uuid":uuid,"grant_type":"password"}
-    #     b = self.session.post(token_endpoint, data=json.dumps(log) )
-    #     print(b.text)
-
-    # def message(self):
-    #     response = self.session.get("https://www.vinted.fr/api/v2/users/33003526/msg_threads?page=1&per_page=20")
-    #     print(response.text)
+        except Exception:
+            pass
 
 
 requester = Requester()
