@@ -3,7 +3,7 @@ import random
 from requests.exceptions import HTTPError
 
 class Requester:
-    def __init__(self, proxies=None, max_retries=3):
+    def __init__(self, proxies=None, max_retries=250):
         self.HEADER = {
             "User-Agent": "PostmanRuntime/7.28.4",
             "Host": "www.vinted.fr",
