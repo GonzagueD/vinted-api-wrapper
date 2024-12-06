@@ -59,7 +59,7 @@ class Requester:
         while tried < self.MAX_RETRIES:
             tried += 1
             try:
-                response = self.session.get(url, params=params, timeout=10)
+                response = self.session.get(url, params=params, timeout=20)
                 if response.status_code == 200:
                     return response
                 else:
@@ -73,7 +73,7 @@ class Requester:
         while tried < self.MAX_RETRIES:
             tried += 1
             try:
-                response = self.session.post(url, params=params, timeout=10)
+                response = self.session.post(url, params=params, timeout=20)
                 response.raise_for_status()
                 return response
             except Exception:
